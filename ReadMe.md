@@ -1,6 +1,6 @@
 # DatLibrary
 
-TT Games `.DAT` library, based off the [ttgames bms script](http://aluigi.altervista.org/bms/ttgames.bms).
+TT Games `.DAT` library, based off the [ttgames bms script](http://aluigi.altervista.org/bms/ttgames.bms) by [Luigi Auriemma](http://aluigi.altervista.org/).
 
 ## Usage
 
@@ -33,4 +33,4 @@ dotnet build DatLibrary
 
 ## Credit
 
-- **[ArchLeaders](https://github.com/ArchLeaders)**: C# Library based off this [ttgames bms script](http://aluigi.altervista.org/bms/ttgames.bms)
+- **[ArchLeaders](https://github.com/ArchLeaders)**: C# Library based off the [ttgames bms script](http://aluigi.altervista.org/bms/ttgames.bms) by [Luigi Auriemma](http://aluigi.altervista.org/)
