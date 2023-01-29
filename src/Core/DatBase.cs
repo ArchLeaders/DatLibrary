@@ -1,8 +1,7 @@
-﻿using CeadLibrary.IO;
-using DatLibrary.Extensions;
+﻿using DatLibrary.Extensions;
+using DatLibrary.Structs;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Text;
 
 namespace DatLibrary.Core;
 
@@ -32,9 +31,9 @@ public class DatBase
         stream.Read(buffer32);
         int fileCount = BinaryPrimitives.ReadInt32LittleEndian(buffer32);
 
-        // Isn't the file count on newer archives?
+        // Isn't the file count on some archives?
         if (fileCount != 0x3443432E && fileCount != 0x2e434334 && fileCount != 0x3443432E && fileCount != 0x2E434334) {
-            LoadLegacyHdr(stream, archiveId, fileCount);
+            LoadArchive(stream, archiveId, fileCount);
         }
         else {
             LoadHdr(null!);
@@ -46,102 +45,20 @@ public class DatBase
 
     }
 
-    public static void LoadLegacyHdr(Stream stream, int archiveId, int fileCount)
+    public static unsafe void LoadArchive(Stream stream, int archiveId, int entryCount)
     {
-        // TODO: Make this somewhat readable
+        Entry[] entries = new Entry[entryCount];
+        stream.FillArray(entries);
 
-        // Only allocate buffers larger than 1mb
-        int entryBufferSize = fileCount * 16;
-        Span<byte> entriesBufffer = entryBufferSize < 0x100000 ? stackalloc byte[entryBufferSize] : new byte[entryBufferSize];
-        stream.Read(entriesBufffer);
+        int stringEntryCount = stream.ReadInt32();
+        StringEntry[] stringEntries = new StringEntry[stringEntryCount];
+        stream.FillArray(stringEntries);
 
-        Span<byte> buffer = stackalloc byte[16];
-        var entries = new (string path, uint offset, uint zsize, uint size, uint packed)[fileCount];
-        for (int i = 0; i < fileCount; i++) {
-            buffer = entriesBufffer[(i * 16)..(i * 16 + 16)];
+        int stringTableSize = stream.ReadInt32();
+        byte[] stringTable = ArrayPool<byte>.Shared.Rent(stringTableSize);
 
-            uint offset = buffer[..4].ToUInt32();
-            if (archiveId != -1) {
-                offset <<= 0x8;
-            }
+        // Build top-level nodes
 
-            uint zSize = entriesBufffer[4..8].ToUInt32();
-            uint size = entriesBufffer[12..16].ToUInt32();
-            uint packed = entriesBufffer[16..].ToUInt32() & 0x00FFFFFF;
-
-            entries[i] = (null!, offset + (packed >> 24), zSize, size, packed);
-        }
-
-        // Get string info entry count
-        Span<byte> buffer32 = stackalloc byte[4];
-        stream.Read(buffer32);
-        int nameCount = buffer32.ToInt32();
-
-        // Only allocate buffers larger than 1mb
-        int nodeSize = archiveId <= -5 ? 12 : 8;
-        int strInfoBufferSize = nameCount * nodeSize;
-        Span<byte> strInfoBuffer = strInfoBufferSize < 0x100000 ? stackalloc byte[strInfoBufferSize] : new byte[strInfoBufferSize];
-        stream.Read(strInfoBuffer);
-
-        // Get string table length
-        stream.Read(buffer32);
-        int bufferSize = buffer32.ToInt32();
-
-        // Read strings buffer
-        Span<byte> stringsBuffer = stackalloc byte[bufferSize];
-        stream.Read(stringsBuffer);
-
-        // not sure what the last DWord before the strings is
-        long namesOffset = stream.Position + strInfoBufferSize + 4;
-        string[] prevNames = ArrayPool<string>.Shared.Rent(nameCount);
-
-        Stack<string> root = new();
-        buffer = stackalloc byte[8];
-
-        int index = 0;
-        for (int i = 0; i < fileCount; i++) {
-            StringBuilder sb = new();
-
-            int next = 1;
-            while (next > 0) {
-                buffer = strInfoBuffer[(index * 12)..(index * 12 + 12)];
-
-                // >0 means there's another node, but I'm
-                // assuming since the value isn't 1/0,
-                // that it contains other data
-                next = buffer[..2].ToInt16();
-
-                // Prepend the last path (probably poorly),
-                // clear may be redundant here, I don't
-                // think this is ever reached while(sb.Length > 0)
-                int prev = buffer[2..4].ToInt16();
-                if (prev != 0) {
-                    sb.Clear();
-                    sb.Append(prevNames[prev]);
-                }
-
-                // Seems to allocate unessissary duplicates,
-                // but they are indexed by prev in some
-                // instances
-                if (sb.Length > 0) {
-                    prevNames[index] = sb.ToString();
-                }
-
-                // Read the string from an offset relative
-                // to the start of the string table
-                int offset = buffer[4..8].ToInt32();
-                if (offset >= 0) {
-                    sb.Append(stringsBuffer[offset..].ReadNullTerminatedString());
-
-                    if (next > 0) {
-                        sb.Append(Path.DirectorySeparatorChar);
-                    }
-                }
-
-                index++;
-            }
-
-            entries[i].path = sb.ToString();
-        }
+        ArrayPool<byte>.Shared.Return(stringTable);
     }
 }
