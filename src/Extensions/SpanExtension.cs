@@ -1,9 +1,21 @@
 ﻿using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 
 namespace DatLibrary.Extensions;
 
 public static class SpanExtension
 {
+    public static unsafe T ToStruct<T>(this Span<byte> data) where T : struct
+    {
+        if (data.Length < Marshal.SizeOf<T>()) {
+            throw new ArgumentException($"The data was too short, expected {Marshal.SizeOf<T>()} and got {data.Length}", nameof(data));
+        }
+
+        fixed (byte* ptr = data) {
+            return Marshal.PtrToStructure<T>((IntPtr)ptr);
+        }
+    }
+
     public static short ToInt16(this Span<byte> data, bool bigEndian = false)
     {
         if (bigEndian) {
