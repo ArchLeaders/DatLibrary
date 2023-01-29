@@ -48,6 +48,8 @@ public class DatBase
 
     public static void LoadLegacyHdr(Stream stream, int archiveId, int fileCount)
     {
+        // TODO: Make this somewhat readable
+
         // Only allocate buffers larger than 1mb
         int entryBufferSize = fileCount * 16;
         Span<byte> entriesBufffer = entryBufferSize < 0x100000 ? stackalloc byte[entryBufferSize] : new byte[entryBufferSize];
@@ -80,6 +82,14 @@ public class DatBase
         int strInfoBufferSize = nameCount * nodeSize;
         Span<byte> strInfoBuffer = strInfoBufferSize < 0x100000 ? stackalloc byte[strInfoBufferSize] : new byte[strInfoBufferSize];
         stream.Read(strInfoBuffer);
+
+        // Get string table length
+        stream.Read(buffer32);
+        int bufferSize = buffer32.ToInt32();
+
+        // Read strings buffer
+        Span<byte> stringsBuffer = stackalloc byte[bufferSize];
+        stream.Read(stringsBuffer);
 
         // not sure what the last DWord before the strings is
         long namesOffset = stream.Position + strInfoBufferSize + 4;
@@ -121,7 +131,7 @@ public class DatBase
                 // to the start of the string table
                 int offset = buffer[4..8].ToInt32();
                 if (offset >= 0) {
-                    sb.Append("__entry__");
+                    sb.Append(stringsBuffer[offset..].ReadNullTerminatedString());
 
                     if (next > 0) {
                         sb.Append(Path.DirectorySeparatorChar);
